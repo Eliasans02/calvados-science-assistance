@@ -1,9 +1,8 @@
 #!/bin/bash
-# Dead Regulations Detector - Quick Launcher
-# Decentrathon 5.0 Project
+# Calvados Science Assistance - UI Launcher
 
-echo "🏛️  Dead Regulations Detector"
-echo "=============================="
+echo "🧪 Calvados Science Assistance UI"
+echo "================================="
 echo ""
 
 # Activate virtual environment
@@ -24,9 +23,6 @@ if command -v gh &> /dev/null; then
     fi
 fi
 
-# Stop existing Streamlit
-pkill -f "streamlit run" 2>/dev/null || true
-
 # Run Streamlit
 echo "🚀 Starting Streamlit dashboard..."
 echo "📍 Open: http://localhost:8501"
@@ -37,4 +33,3 @@ echo ""
 (sleep 2 && open http://localhost:8501 2>/dev/null) &
 
 streamlit run src/ui/app.py --server.port 8501
-

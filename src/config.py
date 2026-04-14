@@ -13,9 +13,22 @@ DATA_DIR = PROJECT_ROOT / "data"
 RAW_DATA_DIR = DATA_DIR / "raw"
 PROCESSED_DATA_DIR = DATA_DIR / "processed"
 TEST_DATA_DIR = DATA_DIR / "test"
+FILES_DATA_DIR = DATA_DIR / "files"
+HISTORY_DATA_DIR = DATA_DIR / "history"
+REPORTS_DATA_DIR = DATA_DIR / "reports"
+LOGS_DATA_DIR = DATA_DIR / "logs"
+BACKEND_DB_PATH = DATA_DIR / "backend.db"
 
 # Create directories if they don't exist
-for directory in [RAW_DATA_DIR, PROCESSED_DATA_DIR, TEST_DATA_DIR]:
+for directory in [
+    RAW_DATA_DIR,
+    PROCESSED_DATA_DIR,
+    TEST_DATA_DIR,
+    FILES_DATA_DIR,
+    HISTORY_DATA_DIR,
+    REPORTS_DATA_DIR,
+    LOGS_DATA_DIR,
+]:
     directory.mkdir(parents=True, exist_ok=True)
 
 # AI Provider Configuration

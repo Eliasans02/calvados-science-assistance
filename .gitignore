@@ -6,6 +6,9 @@ venv/
 .idea/
 data/raw/*
 data/processed/*
+data/files/*
+data/history/*
+data/reports/*
 *.db
 *.sqlite
 .ipynb_checkpoints/
