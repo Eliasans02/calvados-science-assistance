@@ -61,3 +61,6 @@ class AuthService:
                 detail="User not found for this token",
             )
         return {"id": user["id"], "email": user["email"], "name": user["name"]}
+
+    def ensure_external_user(self, user_id: str) -> dict[str, Any]:
+        return self._repository.ensure_external_user(user_id)

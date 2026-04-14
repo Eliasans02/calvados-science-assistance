@@ -34,6 +34,8 @@ def _init_state() -> None:
     st.session_state.setdefault("last_file_id", "")
     st.session_state.setdefault("last_agent_result", None)
     st.session_state.setdefault("last_chat_result", None)
+    st.session_state.setdefault("ai_provider", "github")
+    st.session_state.setdefault("ai_api_key", "")
 
 
 def _headers() -> dict[str, str]:
@@ -102,6 +104,34 @@ def _render_sidebar() -> None:
             st.sidebar.error("Backend is not reachable")
             st.sidebar.json(data)
 
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("AI API Key")
+    providers = ["github", "openai", "openrouter", "claude"]
+    current_provider = st.session_state.get("ai_provider", "github")
+    provider_index = providers.index(current_provider) if current_provider in providers else 0
+    st.session_state["ai_provider"] = st.sidebar.selectbox(
+        "Provider",
+        options=providers,
+        index=provider_index,
+        help="Выберите провайдера для AI-рекомендаций",
+    )
+    api_key_input = st.sidebar.text_input(
+        "API key (только для текущей сессии)",
+        type="password",
+        value=st.session_state.get("ai_api_key", ""),
+    )
+    connect_col, clear_col = st.sidebar.columns(2)
+    with connect_col:
+        if st.button("Connect key"):
+            st.session_state["ai_api_key"] = api_key_input.strip()
+    with clear_col:
+        if st.button("Clear key"):
+            st.session_state["ai_api_key"] = ""
+    if st.session_state.get("ai_api_key"):
+        st.sidebar.success(f"AI key connected ({st.session_state['ai_provider']})")
+    else:
+        st.sidebar.info("AI key не подключен: будет rule-based режим")
+
     user = st.session_state.get("user")
     if user:
         st.sidebar.success(f"Logged in as {user.get('email')}")
@@ -160,6 +190,10 @@ def _render_auth_block() -> None:
 
 def _render_upload_and_agents() -> None:
     st.subheader("Upload document and run agents")
+    st.info(
+        "Порядок работы: 1) загрузите файл, 2) запустите нужные агенты (или весь pipeline через n8n), "
+        "3) скачайте отчёт в MD/JSON/XLSX."
+    )
 
     uploaded = st.file_uploader("Upload PDF/DOCX/TXT", type=["pdf", "docx", "txt"])
     if uploaded and st.button("Upload file"):
@@ -198,6 +232,7 @@ def _render_upload_and_agents() -> None:
         except ValueError as exc:
             st.error(str(exc))
             return
+        context = _with_ai_context(context)
 
         payload: dict[str, Any] = {"context": context}
         if file_id.strip():
@@ -209,6 +244,8 @@ def _render_upload_and_agents() -> None:
         if ok:
             st.success(f"Agent '{selected_agent}' executed")
             st.session_state["last_agent_result"] = data
+            if selected_agent == "recommendation":
+                _render_recommendation_transparency(data)
             st.json(data)
         else:
             st.error("Agent call failed")
@@ -220,7 +257,7 @@ def _render_upload_and_agents() -> None:
 
     if file_id.strip():
         st.markdown("### Download latest report")
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         with col1:
             if st.button("Download report (md)"):
                 ok, resp = _download_report(file_id.strip(), "md")
@@ -243,6 +280,19 @@ def _render_upload_and_agents() -> None:
                         data=resp["content"],
                         file_name=resp["filename"],
                         mime="application/json",
+                    )
+                else:
+                    st.error("Download failed")
+                    st.json(resp)
+        with col3:
+            if st.button("Download report (xlsx template)"):
+                ok, resp = _download_report(file_id.strip(), "xlsx")
+                if ok:
+                    st.download_button(
+                        label="Save report.xlsx",
+                        data=resp["content"],
+                        file_name=resp["filename"],
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     )
                 else:
                     st.error("Download failed")
@@ -271,7 +321,9 @@ def _download_report(file_id: str, fmt: str) -> tuple[bool, dict[str, Any]]:
 
 def _render_generation() -> None:
     st.subheader("Generate TZ draft")
+    st.info("Рекомендуется указывать file_id: генератор сохранит смысл исходного ТЗ и заполнит шаблонный формат.")
     with st.form("generation_form"):
+        source_file_id = st.text_input("Source file_id (recommended)", value=st.session_state.get("last_file_id", ""))
         project_title = st.text_input("Project title", value="Scientific R&D Program Draft")
         priority = st.text_input("Priority", value="Energy, advanced materials and transport")
         specialization = st.text_input("Specialization", value="AI and digital energy")
@@ -282,7 +334,8 @@ def _render_generation() -> None:
 
     if submitted:
         payload = {
-            "context": {},
+            "context": _with_ai_context({}),
+            "file_id": source_file_id.strip() or None,
             "project_title": project_title,
             "priority": priority,
             "specialization": specialization,
@@ -295,10 +348,47 @@ def _render_generation() -> None:
             st.success("Draft generated")
             result = data.get("result", {})
             st.text_area("Generated TZ", value=result.get("generated_text", ""), height=360)
+            st.caption(
+                f"Method: {result.get('generation_method', 'unknown')} · "
+                f"Source length: {result.get('source_text_length', 0)}"
+            )
+            generated_file_id = (result.get("file_id") or source_file_id or "").strip()
+            if generated_file_id:
+                dl_ok, dl = _download_generated_docx(generated_file_id)
+                if dl_ok:
+                    st.download_button(
+                        label="Download generated TZ (.docx)",
+                        data=dl["content"],
+                        file_name=dl["filename"],
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    )
+                else:
+                    st.warning("DOCX not ready yet")
+                    st.json(dl)
             st.json(data)
         else:
             st.error("Generation failed")
             st.json(data)
+
+
+def _download_generated_docx(file_id: str) -> tuple[bool, dict[str, Any]]:
+    url = st.session_state["api_url"].rstrip("/") + f"/api/generation/{file_id}/download"
+    try:
+        response = requests.get(url, headers=_headers(), timeout=60)
+    except requests.RequestException as exc:
+        return False, {"error": str(exc)}
+    if response.status_code >= 400:
+        payload = response.text
+        try:
+            payload = response.json()
+        except Exception:
+            pass
+        return False, {"status_code": response.status_code, "body": payload}
+    filename = "generated_tz.docx"
+    disposition = response.headers.get("content-disposition", "")
+    if "filename=" in disposition:
+        filename = disposition.split("filename=")[-1].strip().strip('"')
+    return True, {"filename": filename, "content": response.content}
 
 
 def _render_history() -> None:
@@ -344,6 +434,7 @@ def _render_chat() -> None:
         except ValueError as exc:
             st.error(str(exc))
             return
+        context = _with_ai_context(context)
 
         payload = {
             "message": message,
@@ -370,6 +461,37 @@ def _render_chat() -> None:
         else:
             st.error("Cannot load chat history")
             st.json(data)
+
+
+def _render_recommendation_transparency(api_response: dict[str, Any]) -> None:
+    result = api_response.get("result") or {}
+    transparency = result.get("transparency") or {}
+    if not transparency:
+        return
+
+    quality = (transparency.get("text_quality") or {}).get("quality_flag", "unknown")
+    confidence = transparency.get("analysis_confidence", "medium")
+    text_length = transparency.get("text_length", 0)
+    st.caption(
+        f"Прозрачность анализа: quality={quality}, confidence={confidence}, text_length={text_length}"
+    )
+    for note in transparency.get("notes") or []:
+        st.info(note)
+
+    ai = result.get("ai_enhancement") or {}
+    if ai.get("status") == "skipped" and ai.get("note"):
+        st.warning(ai.get("note"))
+
+
+def _with_ai_context(context: Optional[dict[str, Any]]) -> dict[str, Any]:
+    merged = dict(context or {})
+    ai_provider = (st.session_state.get("ai_provider") or "").strip()
+    ai_api_key = (st.session_state.get("ai_api_key") or "").strip()
+    if ai_provider:
+        merged["ai_provider"] = ai_provider
+    if ai_api_key:
+        merged["ai_api_key"] = ai_api_key
+    return merged
 
 
 def main() -> None:

@@ -1,0 +1,266 @@
+  {
+    "name": "Calvados Quick Analysis",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "calvados/quick-analysis",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "1",
+        "name": "Webhook Trigger",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          200,
+          260
+        ],
+        "webhookId": "calvados-quick-analysis"
+      },
+      {
+        "parameters": {
+          "jsCode": "const input = items[0] || { json: {}, binary: {} };\nconst body = input.json.body || input.json || {};\nconst userId = body.user_id || body.userId || String(body.chat_id || body.chatId || 'n8n-user');\nreturn [{ json: { user_id: userId }, binary: input.binary }];"
+        },
+        "id": "2",
+        "name": "Extract Context",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          430,
+          260
+        ]
+      },
+      {
+        "parameters": {
+          "url": "={{$env.API_BASE_URL || 'http://localhost:8000'}}/api/upload",
+          "method": "POST",
+          "sendBody": true,
+          "contentType": "multipart-form-data",
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "user_id",
+                "value": "={{$json.user_id}}"
+              }
+            ]
+          },
+          "sendBinaryData": true,
+          "binaryPropertyName": "data",
+          "options": {}
+        },
+        "id": "3",
+        "name": "Upload Document",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          650,
+          260
+        ],
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 1000
+      },
+      {
+        "parameters": {
+          "jsCode": "const fileId = $json.file_id;\nconst userId = $item(0).$node['Extract Context'].json.user_id;\nreturn [{ json: { file_id: fileId, user_id: userId } }];"
+        },
+        "id": "4",
+        "name": "Prepare Payload",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          860,
+          260
+        ]
+      },
+      {
+        "parameters": {
+          "url": "={{$env.API_BASE_URL || 'http://localhost:8000'}}/agent/text-analysis",
+          "method": "POST",
+          "jsonParameters": true,
+          "sendBody": true,
+          "bodyParametersJson": "={\"file_id\":\"{{$json.file_id}}\",\"user_id\":\"{{$json.user_id}}\"}"
+        },
+        "id": "5",
+        "name": "Text Analysis",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1080,
+          180
+        ],
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 1000
+      },
+      {
+        "parameters": {
+          "url": "={{$env.API_BASE_URL || 'http://localhost:8000'}}/agent/requirement-analysis",
+          "method": "POST",
+          "jsonParameters": true,
+          "sendBody": true,
+          "bodyParametersJson": "={\"file_id\":\"{{$json.file_id}}\",\"user_id\":\"{{$json.user_id}}\"}"
+        },
+        "id": "6",
+        "name": "Requirement Analysis",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1080,
+          340
+        ],
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 1000
+      },
+      {
+        "parameters": {
+          "mode": "combine"
+        },
+        "id": "7",
+        "name": "Merge Results",
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3,
+        "position": [
+          1300,
+          260
+        ]
+      },
+      {
+        "parameters": {
+          "url": "={{$env.API_BASE_URL || 'http://localhost:8000'}}/agent/report",
+          "method": "POST",
+          "jsonParameters": true,
+          "sendBody": true,
+          "bodyParametersJson": "={\"file_id\":\"{{$item(0).$node['Prepare Payload'].json.file_id}}\",\"user_id\":\"{{$item(0).$node['Prepare Payload'].json.user_id}}\"}"
+        },
+        "id": "8",
+        "name": "Build Report",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1520,
+          260
+        ],
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 1000
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{$json}}"
+        },
+        "id": "9",
+        "name": "Respond",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          1740,
+          260
+        ]
+      }
+    ],
+    "pinData": {},
+    "connections": {
+      "Webhook Trigger": {
+        "main": [
+          [
+            {
+              "node": "Extract Context",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extract Context": {
+        "main": [
+          [
+            {
+              "node": "Upload Document",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Upload Document": {
+        "main": [
+          [
+            {
+              "node": "Prepare Payload",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Payload": {
+        "main": [
+          [
+            {
+              "node": "Text Analysis",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Requirement Analysis",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Text Analysis": {
+        "main": [
+          [
+            {
+              "node": "Merge Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Requirement Analysis": {
+        "main": [
+          [
+            {
+              "node": "Merge Results",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "Merge Results": {
+        "main": [
+          [
+            {
+              "node": "Build Report",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build Report": {
+        "main": [
+          [
+            {
+              "node": "Respond",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "active": false,
+    "settings": {
+      "executionOrder": "v1"
+    },
+    "versionId": "1"
+  }

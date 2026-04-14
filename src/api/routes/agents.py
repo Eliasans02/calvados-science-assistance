@@ -24,10 +24,7 @@ def _execute(agent_name: str, payload: AgentRequest, request: Request, user: Opt
     container = get_container(request)
     user_id = _resolve_user_id(payload, user)
     if not container.repository.get_user_by_id(user_id):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
+        container.auth_service.ensure_external_user(user_id)
     request.state.user_id = user_id
     result = container.agent_registry.execute(
         agent_name=agent_name,

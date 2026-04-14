@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 from fastapi import HTTPException, status
 
@@ -26,3 +26,16 @@ def resolve_text(repository: BackendRepository, user_id: str, payload: dict) -> 
             detail="File not found",
         )
     return file_record["normalized_text"], file_id
+
+
+def collect_agent_outputs(repository: BackendRepository, user_id: str, file_id: Optional[str]) -> dict[str, dict[str, Any]]:
+    if not file_id:
+        return {}
+    history = repository.list_agent_results(user_id=user_id, file_id=file_id)
+    outputs: dict[str, dict[str, Any]] = {}
+    for item in history:
+        agent_name = str(item.get("agent_name", "")).strip()
+        if not agent_name:
+            continue
+        outputs[agent_name] = item.get("output_json") or {}
+    return outputs

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
@@ -42,6 +43,24 @@ class BackendRepository:
     def get_user_by_id(self, user_id: str) -> Optional[dict[str, Any]]:
         row = self._db.fetchone("SELECT * FROM users WHERE id = ?", (user_id,))
         return dict(row) if row else None
+
+    def ensure_external_user(self, user_id: str) -> dict[str, Any]:
+        existing = self.get_user_by_id(user_id)
+        if existing:
+            return existing
+        created_at = _utc_now_iso()
+        safe = re.sub(r"[^a-zA-Z0-9_.-]", "_", user_id)
+        email = f"ext_{safe}@integration.local"
+        name = f"External {user_id[:12]}"
+        password_hash = "external-no-password"
+        self._db.execute(
+            """
+            INSERT INTO users(id, email, name, password_hash, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (user_id, email.lower(), name, password_hash, created_at),
+        )
+        return {"id": user_id, "email": email.lower(), "name": name, "created_at": created_at}
 
     def create_session(self, user_id: str, ttl_hours: int = 24) -> dict[str, str]:
         token = str(uuid.uuid4()) + str(uuid.uuid4())
@@ -152,6 +171,24 @@ class BackendRepository:
             item["output_json"] = json.loads(item["output_json"])
             results.append(item)
         return results
+
+    def get_latest_agent_result(self, user_id: str, file_id: str, agent_name: str) -> Optional[dict[str, Any]]:
+        row = self._db.fetchone(
+            """
+            SELECT id, agent_name, input_json, output_json, created_at
+            FROM agent_results
+            WHERE user_id = ? AND file_id = ? AND agent_name = ?
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (user_id, file_id, agent_name),
+        )
+        if not row:
+            return None
+        item = dict(row)
+        item["input_json"] = json.loads(item["input_json"])
+        item["output_json"] = json.loads(item["output_json"])
+        return item
 
     def save_report(
         self,

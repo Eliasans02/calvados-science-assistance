@@ -18,6 +18,9 @@ HISTORY_DATA_DIR = DATA_DIR / "history"
 REPORTS_DATA_DIR = DATA_DIR / "reports"
 LOGS_DATA_DIR = DATA_DIR / "logs"
 BACKEND_DB_PATH = DATA_DIR / "backend.db"
+REPORT_TEMPLATE_XLSX_PATH = Path(
+    os.getenv("REPORT_TEMPLATE_XLSX_PATH", str(PROJECT_ROOT / "templates" / "Оценка_ТЗ_шаблон.xlsx"))
+)
 
 # Create directories if they don't exist
 for directory in [

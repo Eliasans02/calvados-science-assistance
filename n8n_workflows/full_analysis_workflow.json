@@ -1,0 +1,585 @@
+{
+  "name": "Calvados Full Analysis",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "calvados/full-analysis",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "1",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        320
+      ],
+      "webhookId": "calvados-full-analysis"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = items[0] || { json: {}, binary: {} };\nconst body = input.json.body || input.json || {};\nconst userId = body.user_id || body.userId || String(body.chat_id || body.chatId || 'n8n-user');\nreturn [{ json: { user_id: userId }, binary: input.binary }];"
+      },
+      "id": "2",
+      "name": "Extract Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        430,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.API_BASE_URL || 'http://localhost:8000'}}/api/upload",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "user_id",
+              "value": "={{$json.user_id}}"
+            }
+          ]
+        },
+        "sendBinaryData": true,
+        "binaryPropertyName": "data",
+        "options": {}
+      },
+      "id": "3",
+      "name": "Upload Document",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        670,
+        320
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "jsCode": "const fileId = $json.file_id;\nconst userId = $item(0).$node['Extract Context'].json.user_id;\nreturn [{ json: { file_id: fileId, user_id: userId } }];"
+      },
+      "id": "4",
+      "name": "Prepare Agent Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.API_BASE_URL || 'http://localhost:8000'}}/agent/text-analysis",
+        "method": "POST",
+        "jsonParameters": true,
+        "sendBody": true,
+        "bodyParametersJson": "={\"file_id\":\"{{$json.file_id}}\",\"user_id\":\"{{$json.user_id}}\"}"
+      },
+      "id": "5",
+      "name": "Text Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1140,
+        60
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "url": "={{$env.API_BASE_URL || 'http://localhost:8000'}}/agent/requirement-analysis",
+        "method": "POST",
+        "jsonParameters": true,
+        "sendBody": true,
+        "bodyParametersJson": "={\"file_id\":\"{{$json.file_id}}\",\"user_id\":\"{{$json.user_id}}\"}"
+      },
+      "id": "6",
+      "name": "Requirement Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1140,
+        180
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "url": "={{$env.API_BASE_URL || 'http://localhost:8000'}}/agent/structure",
+        "method": "POST",
+        "jsonParameters": true,
+        "sendBody": true,
+        "bodyParametersJson": "={\"file_id\":\"{{$json.file_id}}\",\"user_id\":\"{{$json.user_id}}\"}"
+      },
+      "id": "7",
+      "name": "Structure Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1140,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "url": "={{$env.API_BASE_URL || 'http://localhost:8000'}}/agent/compliance",
+        "method": "POST",
+        "jsonParameters": true,
+        "sendBody": true,
+        "bodyParametersJson": "={\"file_id\":\"{{$json.file_id}}\",\"user_id\":\"{{$json.user_id}}\"}"
+      },
+      "id": "8",
+      "name": "Compliance Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1140,
+        420
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "url": "={{$env.API_BASE_URL || 'http://localhost:8000'}}/agent/scoring",
+        "method": "POST",
+        "jsonParameters": true,
+        "sendBody": true,
+        "bodyParametersJson": "={\"file_id\":\"{{$json.file_id}}\",\"user_id\":\"{{$json.user_id}}\"}"
+      },
+      "id": "9",
+      "name": "Scoring",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1140,
+        540
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "url": "={{$env.API_BASE_URL || 'http://localhost:8000'}}/agent/recommendation",
+        "method": "POST",
+        "jsonParameters": true,
+        "sendBody": true,
+        "bodyParametersJson": "={\"file_id\":\"{{$json.file_id}}\",\"user_id\":\"{{$json.user_id}}\"}"
+      },
+      "id": "10",
+      "name": "Recommendations",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1140,
+        660
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "mode": "combine"
+      },
+      "id": "11",
+      "name": "Merge A",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1360,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine"
+      },
+      "id": "12",
+      "name": "Merge B",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1360,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine"
+      },
+      "id": "13",
+      "name": "Merge C",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1360,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine"
+      },
+      "id": "14",
+      "name": "Merge Phase 1",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1580,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine"
+      },
+      "id": "15",
+      "name": "Merge Phase 1 + C",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1800,
+        430
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const base = $item(0).$node['Prepare Agent Payload'].json;\nreturn [{ json: { file_id: base.file_id, user_id: base.user_id, project_title: 'Auto-generated TZ from n8n' } }];"
+      },
+      "id": "16",
+      "name": "Build Generation Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2020,
+        430
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.API_BASE_URL || 'http://localhost:8000'}}/agent/generation",
+        "method": "POST",
+        "jsonParameters": true,
+        "sendBody": true,
+        "bodyParametersJson": "={{$json}}"
+      },
+      "id": "17",
+      "name": "Generate TZ",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2240,
+        430
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "jsCode": "const base = $item(0).$node['Prepare Agent Payload'].json;\nreturn [{ json: { file_id: base.file_id, user_id: base.user_id } }];"
+      },
+      "id": "18",
+      "name": "Build Report Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2460,
+        430
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.API_BASE_URL || 'http://localhost:8000'}}/agent/report",
+        "method": "POST",
+        "jsonParameters": true,
+        "sendBody": true,
+        "bodyParametersJson": "={\"file_id\":\"{{$json.file_id}}\",\"user_id\":\"{{$json.user_id}}\"}"
+      },
+      "id": "19",
+      "name": "Build Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2680,
+        430
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}"
+      },
+      "id": "20",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2900,
+        430
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Context": {
+      "main": [
+        [
+          {
+            "node": "Upload Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Document": {
+      "main": [
+        [
+          {
+            "node": "Prepare Agent Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Agent Payload": {
+      "main": [
+        [
+          {
+            "node": "Text Analysis",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Requirement Analysis",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Structure Analysis",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Compliance Check",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Scoring",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Recommendations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Text Analysis": {
+      "main": [
+        [
+          {
+            "node": "Merge A",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Requirement Analysis": {
+      "main": [
+        [
+          {
+            "node": "Merge A",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Structure Analysis": {
+      "main": [
+        [
+          {
+            "node": "Merge B",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compliance Check": {
+      "main": [
+        [
+          {
+            "node": "Merge B",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Scoring": {
+      "main": [
+        [
+          {
+            "node": "Merge C",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recommendations": {
+      "main": [
+        [
+          {
+            "node": "Merge C",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge A": {
+      "main": [
+        [
+          {
+            "node": "Merge Phase 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge B": {
+      "main": [
+        [
+          {
+            "node": "Merge Phase 1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Phase 1": {
+      "main": [
+        [
+          {
+            "node": "Merge Phase 1 + C",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge C": {
+      "main": [
+        [
+          {
+            "node": "Merge Phase 1 + C",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Phase 1 + C": {
+      "main": [
+        [
+          {
+            "node": "Build Generation Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Generation Payload": {
+      "main": [
+        [
+          {
+            "node": "Generate TZ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate TZ": {
+      "main": [
+        [
+          {
+            "node": "Build Report Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Report Payload": {
+      "main": [
+        [
+          {
+            "node": "Build Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Report": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1"
+}

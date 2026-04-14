@@ -52,7 +52,8 @@ src/
 - `POST /api/upload` — загрузка PDF/Word/TXT, сохранение и нормализация, возврат `file_id`
 - `GET /api/history` — история загруженных документов
 - `GET /api/history/{file_id}` — детали + промежуточные результаты агентов
-- `GET /api/report/{file_id}/download?format=md|json` — скачивание отчета
+- `GET /api/report/{file_id}/download?format=md|json|xlsx` — скачивание отчета (включая XLSX по шаблону)
+- `GET /api/generation/{file_id}/download` — скачать сгенерированное ТЗ в формате DOCX
 - `POST /api/chat` — чат, который вызывает те же agents, что и n8n
 - `GET /api/chat/history` — история чата
 
@@ -73,9 +74,9 @@ src/
 - `text_analysis_agent` — размытые формулировки, дубли, логические конфликты
 - `requirement_analysis_agent` — отсутствующие разделы и KPI
 - `structure_agent` — проверка/построение структуры по шаблону ПЦФ
-- `generation_agent` — генерация чернового ТЗ по шаблону
-- `recommendation_agent` — рекомендации (ML-ready интерфейс)
-- `scoring_agent` — scoring-заглушка (контракт готов)
+- `generation_agent` — генерация ТЗ на основе исходного текста (faithful mode) + DOCX export
+- `recommendation_agent` — рекомендации + AI-обогащение (executive summary, приоритетные действия)
+- `scoring_agent` — scoring по агрегированным результатам агентов
 - `compliance_agent` — проверка соответствия грантам/НИОКР
 - `report_agent` — финальная сборка отчета из промежуточных результатов
 
@@ -93,6 +94,8 @@ src/
 
 - Файлы: `data/files/`
 - Отчеты: `data/reports/`
+- XLSX-шаблон оценки ТЗ: `templates/Оценка_ТЗ_шаблон.xlsx`
+  - при экспорте заполняются не только баллы (E:K), но и текстовые AI-комментарии/действия (M:W) + прозрачность анализа (X)
 - БД: `data/backend.db`
 - Логи вызовов API: таблица `api_logs` (request_id, latency, status, user_id)
 
@@ -105,6 +108,17 @@ src/
 3. **Domain-specific compliance**: расширить правила в `modules/compliance.py`.
 4. **n8n workflows**: собирать разные сценарии (грант, НИОКР, внутренний аудит) без изменений backend.
 
+## AI-рекомендации: включение
+
+Для AI-обогащения рекомендаций настройте любой provider в `.env`:
+
+- `AI_PROVIDER=github` + `GITHUB_TOKEN=...`, или
+- `AI_PROVIDER=openai` + `OPENAI_API_KEY=...`, или
+- `AI_PROVIDER=openrouter` + `OPENROUTER_API_KEY=...`, или
+- `AI_PROVIDER=claude` + `CLAUDE_API_KEY=...`
+
+Если ключ не задан, система продолжает работать в rule-based режиме.
+
 ## Запуск
 
 ### API backend
@@ -115,8 +129,31 @@ source venv/bin/activate
 
 Swagger: `http://localhost:8000/docs`
 
+### n8n workflows
+Workflow JSON files are in `n8n_workflows/`:
+
+- `full_analysis_workflow.json`
+- `quick_analysis_workflow.json`
+- `error_notification_workflow.json`
+
+Webhook routes are documented in `n8n_workflows/README.md`.
+
 ### Streamlit UI (legacy/preserved)
 ```bash
 source venv/bin/activate
 ./run.sh
 ```
+
+В UI (sidebar) можно подключить AI key прямо в веб-интерфейсе:
+- выбрать provider (`github/openai/openrouter/claude`);
+- вставить API key (действует в текущей web-сессии);
+- запускать `recommendation`/`chat` с AI-обогащением без ручного редактирования `.env`.
+
+### Telegram bot
+Bot sources and deployment configs are in `bots/`:
+
+- `bots/telegram_bot.py`
+- `bots/deploy/telegram-bot.service`
+- `bots/Dockerfile`
+- `bots/docker-compose.yml`
+- `bots/README.md`

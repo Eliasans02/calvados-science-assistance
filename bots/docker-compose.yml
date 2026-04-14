@@ -1,0 +1,10 @@
+services:
+  calvados-telegram-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: calvados-telegram-bot
+    env_file:
+      - .env
+    restart: unless-stopped
+    network_mode: host

@@ -1,0 +1,19 @@
+[Unit]
+Description=Calvados Telegram Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=calvados
+Group=calvados
+WorkingDirectory=/opt/calvados/bots
+EnvironmentFile=/opt/calvados/bots/.env
+ExecStart=/opt/calvados/bots/venv/bin/python /opt/calvados/bots/telegram_bot.py
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target
