@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.shared import Pt
 
 from src.nlp.ai_client import AIClient
 
@@ -21,6 +23,14 @@ SECTION_SPECS = [
     ("4.2", "Конечный результат", ["эффект", "внедрен", "итог", "конечн"]),
     ("5", "Предельная сумма программы", ["бюджет", "тенге", "сумм", "финансир"]),
 ]
+
+MAJOR_TITLES = {
+    "1": "Общие сведения",
+    "2": "Цели и задачи программы",
+    "3": "Пункты стратегических и программных документов",
+    "4": "Ожидаемые результаты",
+    "5": "Предельная сумма программы",
+}
 
 
 def generate_tz(payload: dict[str, Any]) -> dict[str, Any]:
@@ -61,19 +71,25 @@ def generate_tz(payload: dict[str, Any]) -> dict[str, Any]:
 
 def render_generated_tz_docx(title: str, generated_text: str, output_path: Path) -> Path:
     document = Document()
-    document.add_heading(title or "Сформированное ТЗ", level=0)
+    document.styles["Normal"].font.size = Pt(12)
+    heading = document.add_heading(title or "Сформированное ТЗ", level=0)
+    heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
+    previous_was_empty = False
     for raw_line in (generated_text or "").splitlines():
         line = raw_line.strip()
         if not line:
-            document.add_paragraph("")
+            if not previous_was_empty:
+                document.add_paragraph("")
+            previous_was_empty = True
             continue
+        previous_was_empty = False
         if line.startswith("- "):
             document.add_paragraph(line[2:].strip(), style="List Bullet")
-        elif re.match(r"^\d+(\.\d+)?\.", line):
-            paragraph = document.add_paragraph()
-            run = paragraph.add_run(line)
-            run.bold = True
+        elif re.match(r"^\d+\.\s", line):
+            document.add_heading(line, level=1)
+        elif re.match(r"^\d+\.\d+\.\s", line):
+            document.add_heading(line, level=2)
         else:
             document.add_paragraph(line)
 
@@ -91,25 +107,35 @@ def _build_extractive_draft(source_text: str, title_hint: str, payload: dict[str
 
     sentences = _split_sentences(source_text)
     generated_title = _guess_title(source_text, title_hint) or "Проект технического задания"
-    lines = [
-        "1. Общие сведения",
-    ]
+    lines: list[str] = []
     coverage: dict[str, str] = {}
+    current_major = ""
 
     for section_id, section_title, keywords in SECTION_SPECS:
-        section_header = f"{section_id}. {section_title}"
-        lines.append(section_header)
+        major = section_id.split(".")[0]
+        if major != current_major:
+            lines.append(f"{major}. {MAJOR_TITLES.get(major, section_title)}")
+            current_major = major
+
+        has_subsection = "." in section_id
+        if has_subsection:
+            section_header = f"{section_id}. {section_title}"
+            lines.append(section_header)
         extracted = _extract_relevant_sentences(sentences=sentences, keywords=keywords, limit=3)
         if extracted:
             coverage[section_id] = "present"
             for item in extracted:
                 if section_id == "2.2":
-                    lines.append(f"- {item}")
+                    lines.append(f"- {_format_sentence(item)}")
                 else:
-                    lines.append(item)
+                    lines.append(_format_sentence(item))
         else:
             coverage[section_id] = "missing"
-            lines.append("Требуется уточнение по исходному документу.")
+            placeholder = _default_section_placeholder(section_id=section_id)
+            if section_id == "2.2":
+                lines.append(f"- {placeholder}")
+            else:
+                lines.append(placeholder)
         lines.append("")
 
     return {
@@ -294,6 +320,10 @@ def _extract_relevant_sentences(sentences: list[str], keywords: list[str], limit
     seen: set[str] = set()
     for sentence in sentences:
         lowered = sentence.lower()
+        if _is_heading_like_sentence(lowered):
+            continue
+        if len([w for w in re.split(r"\s+", lowered) if w]) < 5:
+            continue
         if not any(keyword in lowered for keyword in keywords):
             continue
         key = sentence[:120].lower()
@@ -304,6 +334,47 @@ def _extract_relevant_sentences(sentences: list[str], keywords: list[str], limit
         if len(selected) >= limit:
             break
     return selected
+
+
+def _format_sentence(sentence: str) -> str:
+    cleaned = re.sub(r"\s+", " ", sentence).strip()
+    if not cleaned:
+        return cleaned
+    if cleaned[-1] not in ".!?":
+        cleaned += "."
+    return cleaned[0].upper() + cleaned[1:]
+
+
+def _default_section_placeholder(section_id: str) -> str:
+    placeholders = {
+        "1.1": "Уточнить приоритет программы по исходному документу.",
+        "1.2": "Уточнить специализированное направление по исходному документу.",
+        "2.1": "Сформулировать цель программы на основании исходного текста.",
+        "2.2": "Добавить задачи программы с измеримыми индикаторами.",
+        "3": "Добавить ссылки на стратегические и программные документы.",
+        "4.1": "Уточнить прямые результаты и количественные KPI.",
+        "4.2": "Уточнить конечный результат и ожидаемый эффект внедрения.",
+        "5": "Уточнить бюджет, сроки и распределение финансирования.",
+    }
+    return placeholders.get(section_id, "Требуется уточнение по исходному документу.")
+
+
+def _is_heading_like_sentence(lowered: str) -> bool:
+    text = lowered.strip(" .:")
+    if re.match(r"^\d+(\.\d+)*$", text):
+        return True
+    heading_tokens = {
+        "общие сведения",
+        "цели и задачи программы",
+        "ожидаемые результаты",
+        "предельная сумма программы",
+        "пункты стратегических и программных документов",
+        "прямые результаты",
+        "конечный результат",
+        "цель программы",
+        "задачи программы",
+    }
+    return text in heading_tokens
 
 
 def _guess_title(source_text: str, title_hint: str) -> str:
